@@ -10,7 +10,7 @@ import backgroundImage from '../assets/bg-bayene.jpg';
 export default function Login() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { error, status } = useSelector((state) => state.user);
+  const { status } = useSelector((state) => state.user);
   const isLoading = status === 'loading';
 
   const [isLoaded, setIsLoaded] = useState(false);

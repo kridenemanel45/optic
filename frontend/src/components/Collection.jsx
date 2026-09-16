@@ -7,7 +7,6 @@ import {
   ShoppingBag,
   ArrowLeft,
   Check,
-  Eye,
   Lock,
   ArrowUpRight,
   Heart,
@@ -20,24 +19,11 @@ import {
 
 import backgroundImage from "../assets/bg-bayene.jpg";
 
-/* =========================================================
-   PALETTE BAYENE / LA ROSELLE
-========================================================= */
-
-const COLORS = {
-  cream: "#FAF7F3",
-  beige: "#E8DDD3",
-  powder: "#D4B8AE",
-  brown: "#8B7355",
-  dark: "#302822",
-  rose: "#B99483",
-};
 
 /* =========================================================
    HOOK REVEAL
 ========================================================= */
-
-function useReveal(options = {}) {
+function useReveal() {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
 
@@ -55,7 +41,6 @@ function useReveal(options = {}) {
       },
       {
         threshold: 0.12,
-        ...options,
       }
     );
 
