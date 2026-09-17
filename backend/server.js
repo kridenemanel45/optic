@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 // Connexion à MongoDB
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/bayene-optique')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bayene-optique')
   .then(() => console.log('Connecté à MongoDB avec succès'))
   .catch((err) => console.error('Erreur de connexion à MongoDB :', err));
 
