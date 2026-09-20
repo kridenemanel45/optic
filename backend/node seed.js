@@ -1,18 +1,15 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-// Connexion à MongoDB (utilise la variable du .env ou localhost par défaut)
+// Connexion à MongoDB
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/bayene-optique';
 
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("Connexion à MongoDB réussie pour le remplissage (Seeding)..."))
-.catch(err => {
-  console.error("Erreur de connexion MongoDB :", err);
-  process.exit(1);
-});
+mongoose.connect(MONGO_URI)
+  .then(() => console.log("Connexion à MongoDB réussie pour le remplissage (Seeding)..."))
+  .catch(err => {
+    console.error("Erreur de connexion MongoDB :", err);
+    process.exit(1);
+  });
 
 // Schéma Produit (adapté à vos champs)
 const productSchema = new mongoose.Schema({
@@ -94,9 +91,12 @@ async function seedDatabase() {
     await Product.deleteMany({});
     console.log("Anciens produits supprimés.");
 
-    // Insère les nouveaux produits
-    await Product.insertMany(sampleProducts);
-    console.log("Base de données remplie avec succès avec les collections !");
+await Product.insertMany(sampleProducts);
+console.log("Base de données remplie avec succès avec les collections !");
+console.log("Base utilisée :", mongoose.connection.db.databaseName);
+console.log("Nombre de produits :", await Product.countDocuments());
+
+mongoose.connection.close();
     
     mongoose.connection.close();
   } catch (error) {
