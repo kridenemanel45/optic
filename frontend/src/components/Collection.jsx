@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
+import {
+  useDispatch,
+  useSelector,
+} from "react-redux";
 import { addToCart } from "../features/cartSlice";
-
 import {
   ShoppingBag,
   ArrowLeft,
@@ -15,6 +17,7 @@ import {
 import {
   getProducts,
   getProductById,
+  saveCart,
 } from "../services/api";
 
 import backgroundImage from "../assets/bg-bayene.jpg";
@@ -51,6 +54,7 @@ function useReveal() {
 
   return [ref, visible];
 }
+
 
 /* =========================================================
    COLLECTIONS OVERVIEW
@@ -136,8 +140,6 @@ export function CollectionsOverview() {
         overflow-x-hidden
       "
     >
-      {/* Background */}
-
       <div
         className="
           fixed
@@ -151,8 +153,6 @@ export function CollectionsOverview() {
           backgroundImage: `url(${backgroundImage})`,
         }}
       />
-
-      {/* HEADER */}
 
       <header
         className="
@@ -204,8 +204,6 @@ export function CollectionsOverview() {
           "
         />
       </header>
-
-      {/* LOADING */}
 
       {loading ? (
         <div
@@ -275,6 +273,7 @@ export function CollectionsOverview() {
   );
 }
 
+
 /* =========================================================
    COLLECTION ROW
 ========================================================= */
@@ -310,8 +309,6 @@ function CollectionRow({
         }
       `}
     >
-      {/* IMAGE */}
-
       <div
         className={`
           lg:col-span-7
@@ -361,8 +358,6 @@ function CollectionRow({
           />
         </div>
       </div>
-
-      {/* INFOS */}
 
       <div
         className={`
@@ -479,6 +474,7 @@ function CollectionRow({
   );
 }
 
+
 /* =========================================================
    COLLECTION DETAIL
 ========================================================= */
@@ -573,8 +569,6 @@ export function CollectionDetail() {
         overflow-x-hidden
       "
     >
-      {/* BACKGROUND */}
-
       <div
         className="
           fixed
@@ -598,8 +592,6 @@ export function CollectionDetail() {
           w-full
         "
       >
-        {/* RETOUR */}
-
         <button
           onClick={() =>
             navigate("/collection")
@@ -631,8 +623,6 @@ export function CollectionDetail() {
 
           Retour aux collections
         </button>
-
-        {/* HEADER */}
 
         <div
           className="
@@ -684,8 +674,6 @@ export function CollectionDetail() {
           />
         </div>
 
-        {/* LOADING */}
-
         {loading ? (
           <div className="py-28 text-center">
             <p
@@ -716,10 +704,6 @@ export function CollectionDetail() {
             </p>
           </div>
         ) : (
-          /* =================================================
-             NOUVELLE GRILLE
-          ================================================= */
-
           <div
             className="
               grid
@@ -754,8 +738,9 @@ export function CollectionDetail() {
   );
 }
 
+
 /* =========================================================
-   PRODUCT CARD — NOUVEAU DESIGN
+   PRODUCT CARD
 ========================================================= */
 
 function ProductCardModern({
@@ -778,6 +763,11 @@ function ProductCardModern({
   const { userInfo } =
     useSelector(
       (state) => state.user
+    );
+
+  const cartItems =
+    useSelector(
+      (state) => state.cart.items
     );
 
   const isAdmin =
@@ -813,11 +803,12 @@ function ProductCardModern({
     product.image ||
     "https://via.placeholder.com/1200";
 
+
   /* =====================================================
      PANIER
   ===================================================== */
 
-  const handleAddToCart = (event) => {
+  const handleAddToCart = async (event) => {
     event.stopPropagation();
 
     if (!canSeePricesAndCart) {
@@ -825,23 +816,83 @@ function ProductCardModern({
       return;
     }
 
-    dispatch(
-      addToCart({
-        id: prodId,
-        name: prodName,
-        price: Number(prodPrice),
-        image: prodImage,
-        ref: prodRef,
-        quantite: 1,
-      })
-    );
+    try {
+      const existingItem = cartItems.find(
+        (item) =>
+          String(item._id || item.id) ===
+          String(prodId)
+      );
 
-    setAdded(true);
+      let nextItems;
 
-    setTimeout(() => {
-      setAdded(false);
-    }, 2000);
+      if (existingItem) {
+        nextItems = cartItems.map(
+          (item) =>
+            String(item._id || item.id) ===
+            String(prodId)
+              ? {
+                  ...item,
+                  quantite:
+                    Number(
+                      item.quantite || 1
+                    ) + 1,
+                }
+              : item
+        );
+      } else {
+        nextItems = [
+          ...cartItems,
+          {
+            id: prodId,
+            name: prodName,
+            price: Number(prodPrice),
+            image: prodImage,
+            ref: prodRef,
+            quantite: 1,
+          },
+        ];
+      }
+
+      const response = await saveCart(
+        nextItems.map((item) => ({
+          productId:
+            item._id || item.id,
+          quantite: Number(
+            item.quantite || 1
+          ),
+        }))
+      );
+
+      dispatch(
+        addToCart({
+          id: prodId,
+          name: prodName,
+          price: Number(prodPrice),
+          image: prodImage,
+          ref: prodRef,
+          quantite: 1,
+        })
+      );
+
+      console.log(
+        "✅ Panier synchronisé :",
+        response.data
+      );
+
+      setAdded(true);
+
+      setTimeout(() => {
+        setAdded(false);
+      }, 2000);
+    } catch (error) {
+      console.error(
+        "❌ Erreur ajout panier :",
+        error.response?.data ||
+          error.message
+      );
+    }
   };
+
 
   /* =====================================================
      DETAIL
@@ -879,10 +930,6 @@ function ProductCardModern({
         `,
       }}
     >
-      {/* =================================================
-          IMAGE AREA
-      ================================================= */}
-
       <div
         className="
           relative
@@ -892,8 +939,6 @@ function ProductCardModern({
           bg-[#F1EBE5]
         "
       >
-        {/* IMAGE */}
-
         <img
           src={prodImage}
           alt={prodName}
@@ -916,8 +961,6 @@ function ProductCardModern({
           decoding="async"
         />
 
-        {/* SOFT LIGHT */}
-
         <div
           className="
             absolute
@@ -929,8 +972,6 @@ function ProductCardModern({
             pointer-events-none
           "
         />
-
-        {/* NUMERO */}
 
         <div
           className="
@@ -949,8 +990,6 @@ function ProductCardModern({
         >
           {String(index + 1).padStart(2, "0")}
         </div>
-
-        {/* FAVORI */}
 
         <button
           onClick={(event) => {
@@ -991,8 +1030,6 @@ function ProductCardModern({
           />
         </button>
 
-        {/* NOUVEAU */}
-
         {index === 0 && (
           <div
             className="
@@ -1016,8 +1053,6 @@ function ProductCardModern({
             Nouveau
           </div>
         )}
-
-        {/* VIEW */}
 
         <button
           onClick={(event) => {
@@ -1063,18 +1098,12 @@ function ProductCardModern({
         </button>
       </div>
 
-      {/* =================================================
-          INFORMATIONS
-      ================================================= */}
-
       <div
         className="
           pt-5
           sm:pt-6
         "
       >
-        {/* REF */}
-
         <div
           className="
             flex
@@ -1106,8 +1135,6 @@ function ProductCardModern({
           />
         </div>
 
-        {/* NOM */}
-
         <h3
           className="
             font-serif
@@ -1124,8 +1151,6 @@ function ProductCardModern({
         >
           {prodName}
         </h3>
-
-        {/* PRIX */}
 
         <div className="mt-3 min-h-[25px]">
           {canSeePricesAndCart ? (
@@ -1190,10 +1215,6 @@ function ProductCardModern({
         </div>
       </div>
 
-      {/* =================================================
-          BOUTON PANIER
-      ================================================= */}
-
       <div className="mt-4">
         <button
           onClick={handleAddToCart}
@@ -1253,6 +1274,7 @@ function ProductCardModern({
   );
 }
 
+
 /* =========================================================
    PRODUCT DETAIL
 ========================================================= */
@@ -1274,6 +1296,11 @@ export function ProductDetail() {
   const { userInfo } =
     useSelector(
       (state) => state.user
+    );
+
+  const cartItems =
+    useSelector(
+      (state) => state.cart.items
     );
 
   const isAdmin =
@@ -1316,9 +1343,6 @@ export function ProductDetail() {
     fetchProduct();
   }, [productId]);
 
-  /* =====================================================
-     LOADING
-  ===================================================== */
 
   if (loading) {
     return (
@@ -1347,9 +1371,6 @@ export function ProductDetail() {
     );
   }
 
-  /* =====================================================
-     NOT FOUND
-  ===================================================== */
 
   if (!product) {
     return (
@@ -1396,6 +1417,7 @@ export function ProductDetail() {
     );
   }
 
+
   /* =====================================================
      PRODUCT DATA
   ===================================================== */
@@ -1426,33 +1448,96 @@ export function ProductDetail() {
     product.image ||
     "https://via.placeholder.com/1200";
 
+
   /* =====================================================
      PANIER
   ===================================================== */
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async (event) => {
+    event.stopPropagation();
+
     if (!canSeePricesAndCart) {
       navigate("/login");
       return;
     }
 
-    dispatch(
-      addToCart({
-        id: prodId,
-        name: prodName,
-        price: Number(prodPrice),
-        image: prodImage,
-        ref: prodRef,
-        quantite: 1,
-      })
-    );
+    try {
+      const existingItem = cartItems.find(
+        (item) =>
+          String(item._id || item.id) ===
+          String(prodId)
+      );
 
-    setAdded(true);
+      let nextItems;
 
-    setTimeout(() => {
-      setAdded(false);
-    }, 2000);
+      if (existingItem) {
+        nextItems = cartItems.map(
+          (item) =>
+            String(item._id || item.id) ===
+            String(prodId)
+              ? {
+                  ...item,
+                  quantite:
+                    Number(
+                      item.quantite || 1
+                    ) + 1,
+                }
+              : item
+        );
+      } else {
+        nextItems = [
+          ...cartItems,
+          {
+            id: prodId,
+            name: prodName,
+            price: Number(prodPrice),
+            image: prodImage,
+            ref: prodRef,
+            quantite: 1,
+          },
+        ];
+      }
+
+      const response = await saveCart(
+        nextItems.map((item) => ({
+          productId:
+            item._id || item.id,
+          quantite: Number(
+            item.quantite || 1
+          ),
+        }))
+      );
+
+      dispatch(
+        addToCart({
+          id: prodId,
+          name: prodName,
+          price: Number(prodPrice),
+          image: prodImage,
+          ref: prodRef,
+          quantite: 1,
+        })
+      );
+
+      console.log(
+        "✅ Produit ajouté au panier :",
+        response.data
+      );
+
+      setAdded(true);
+
+      setTimeout(() => {
+        setAdded(false);
+      }, 2000);
+    } catch (error) {
+      console.error(
+        "❌ Erreur synchronisation panier :",
+        error.response?.data ||
+          error.message
+      );
+    }
   };
+
 
   return (
     <div
@@ -1470,8 +1555,6 @@ export function ProductDetail() {
         overflow-x-hidden
       "
     >
-      {/* BACKGROUND */}
-
       <div
         className="
           fixed
@@ -1494,8 +1577,6 @@ export function ProductDetail() {
           mx-auto
         "
       >
-        {/* RETOUR */}
-
         <button
           onClick={() =>
             navigate("/collection")
@@ -1528,7 +1609,6 @@ export function ProductDetail() {
           Retour aux collections
         </button>
 
-        {/* PRODUCT */}
 
         <div
           className="
@@ -1542,10 +1622,6 @@ export function ProductDetail() {
             sm:mt-16
           "
         >
-          {/* =================================================
-              IMAGE PRODUIT
-          ================================================= */}
-
           <div
             className="
               relative
@@ -1597,9 +1673,6 @@ export function ProductDetail() {
             </div>
           </div>
 
-          {/* =================================================
-              INFOS
-          ================================================= */}
 
           <div
             className="

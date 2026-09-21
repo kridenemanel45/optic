@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Users, CheckCircle, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
+import {
+  Users,
+  CheckCircle,
+  ShieldAlert,
+  LogOut,
+  RefreshCw,
+} from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout, updateUserStatus } from '../features/userSlice';
+import { logout } from '../features/userSlice';
 import { useNavigate } from 'react-router-dom';
+
+const API_URL =
+  process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export default function AdminPanel() {
   const [users, setUsers] = useState([]);
@@ -14,66 +23,120 @@ export default function AdminPanel() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  // Récupération de l'utilisateur connecté ET de son token
   const { userInfo } = useSelector((state) => state.user);
 
+  /*
+   * Récupérer tous les utilisateurs
+   * Le token JWT est envoyé au backend.
+   */
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+
+      if (!userInfo?.token) {
+        setError("Session administrateur invalide. Veuillez vous reconnecter.");
+        return;
+      }
 
       const response = await axios.get(
-        'http://localhost:5000/api/users/users',
+        `${API_URL}/users/users`,
         {
           headers: {
-            Authorization: `Bearer ${userInfo?.token}`,
+            Authorization: `Bearer ${userInfo.token}`,
           },
         }
       );
 
       setUsers(response.data);
-      setError(null);
     } catch (err) {
-      setError("Erreur lors de la récupération des utilisateurs.");
+      console.error(
+        'Erreur récupération utilisateurs:',
+        err.response?.data || err.message
+      );
+
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        setError(
+          "Accès refusé. Votre session administrateur est invalide ou expirée."
+        );
+      } else {
+        setError(
+          "Erreur lors de la récupération des utilisateurs."
+        );
+      }
     } finally {
       setLoading(false);
     }
-  }, [userInfo?.token]);
+  }, [userInfo]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
+  /*
+   * Approuver un utilisateur
+   */
   const handleApprove = async (id) => {
     try {
       setApproving(id);
 
+      if (!userInfo?.token) {
+        alert(
+          "Session administrateur invalide. Veuillez vous reconnecter."
+        );
+        return;
+      }
+
       await axios.put(
-        `http://localhost:5000/api/users/approve/${id}`,
+        `${API_URL}/users/approve/${id}`,
         {},
         {
           headers: {
-            Authorization: `Bearer ${userInfo?.token}`,
+            Authorization: `Bearer ${userInfo.token}`,
           },
         }
       );
 
+      // Mise à jour immédiate de l'affichage
       setUsers((prevUsers) =>
-        prevUsers.map((u) =>
-          u._id === id ? { ...u, isApproved: true } : u
+        prevUsers.map((user) =>
+          user._id === id
+            ? { ...user, isApproved: true }
+            : user
         )
       );
 
-      if (userInfo && id === userInfo.id) {
-        dispatch(updateUserStatus({ id, isApproved: true }));
-      }
-
+      // Recharge les utilisateurs depuis le serveur
       await fetchUsers();
+
     } catch (err) {
-      alert("Erreur lors de l'approbation de l'utilisateur.");
+      console.error(
+        "Erreur approbation:",
+        err.response?.data || err.message
+      );
+
+      if (err.response?.status === 401) {
+        alert(
+          "Votre session a expiré. Veuillez vous reconnecter."
+        );
+      } else if (err.response?.status === 403) {
+        alert(
+          "Accès refusé : cette action est réservée à l'administrateur."
+        );
+      } else {
+        alert(
+          "Erreur lors de l'approbation de l'utilisateur."
+        );
+      }
     } finally {
       setApproving(null);
     }
   };
 
+  /*
+   * Déconnexion
+   */
   const handleLogout = () => {
     dispatch(logout());
     navigate('/login');
@@ -81,10 +144,12 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-black text-white pt-32 pb-20 px-6 sm:px-10">
+
       <div className="max-w-6xl mx-auto space-y-8">
 
-        {/* En-tête du panneau admin */}
-        <div className="flex justify-between items-center border-b border-[#9E6B6B]/30 pb-6">
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#9E6B6B]/30 pb-6">
+
           <div>
             <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#9E6B6B]">
               Administration
@@ -97,16 +162,20 @@ export default function AdminPanel() {
 
           <div className="flex items-center gap-4">
 
-            {/* Bouton Rafraîchir */}
+            {/* Rafraîchir */}
             <button
               onClick={fetchUsers}
-              className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-mono uppercase tracking-widest transition-colors cursor-pointer"
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-mono uppercase tracking-widest transition-colors cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw size={14} />
+              <RefreshCw
+                size={14}
+                className={loading ? 'animate-spin' : ''}
+              />
               Rafraîchir
             </button>
 
-            {/* Bouton Déconnexion */}
+            {/* Déconnexion */}
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 bg-[#9E6B6B] hover:bg-[#8A5A5A] text-white text-xs font-mono uppercase tracking-widest transition-colors cursor-pointer"
@@ -118,11 +187,14 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Statistiques rapides */}
-        {!loading && !error && users.length > 0 && (
+        {/* STATISTIQUES */}
+        {!loading && !error && (
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-            <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-4 rounded-none">
+            {/* TOTAL */}
+            <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-4">
+
               <p className="text-xs font-mono uppercase tracking-widest text-neutral-600">
                 Total Utilisateurs
               </p>
@@ -130,9 +202,12 @@ export default function AdminPanel() {
               <p className="text-3xl font-serif text-[#9E6B6B]">
                 {users.length}
               </p>
+
             </div>
 
-            <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-4 rounded-none">
+            {/* EN ATTENTE */}
+            <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-4">
+
               <p className="text-xs font-mono uppercase tracking-widest text-neutral-600">
                 En attente
               </p>
@@ -140,13 +215,18 @@ export default function AdminPanel() {
               <p className="text-3xl font-serif text-amber-700">
                 {
                   users.filter(
-                    (u) => !u.isApproved && u.role !== 'admin'
+                    (user) =>
+                      !user.isApproved &&
+                      user.role !== 'admin'
                   ).length
                 }
               </p>
+
             </div>
 
-            <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-4 rounded-none">
+            {/* APPROUVÉS */}
+            <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-4">
+
               <p className="text-xs font-mono uppercase tracking-widest text-neutral-600">
                 Approuvés
               </p>
@@ -154,123 +234,202 @@ export default function AdminPanel() {
               <p className="text-3xl font-serif text-green-700">
                 {
                   users.filter(
-                    (u) => u.isApproved || u.role === 'admin'
+                    (user) =>
+                      user.isApproved ||
+                      user.role === 'admin'
                   ).length
                 }
               </p>
+
             </div>
 
           </div>
         )}
 
-        {/* Contenu */}
-        {loading ? (
+        {/* CHARGEMENT */}
+        {loading && (
+
           <p className="text-center text-neutral-400 font-mono text-xs">
             Chargement des utilisateurs...
           </p>
-        ) : error ? (
-          <p className="text-center text-red-400 font-mono text-xs">
-            {error}
-          </p>
-        ) : users.length === 0 ? (
+
+        )}
+
+        {/* ERREUR */}
+        {!loading && error && (
+
+          <div className="text-center space-y-4">
+
+            <p className="text-red-400 font-mono text-xs">
+              {error}
+            </p>
+
+            <button
+              onClick={fetchUsers}
+              className="px-4 py-2 bg-[#9E6B6B] hover:bg-[#8A5A5A] text-white text-xs font-mono uppercase tracking-widest"
+            >
+              Réessayer
+            </button>
+
+          </div>
+
+        )}
+
+        {/* AUCUN UTILISATEUR */}
+        {!loading && !error && users.length === 0 && (
+
           <p className="text-center text-neutral-400 font-mono text-xs">
             Aucun utilisateur inscrit.
           </p>
-        ) : (
+
+        )}
+
+        {/* TABLEAU */}
+        {!loading && !error && users.length > 0 && (
+
           <div className="bg-[#FCFAFA] text-neutral-900 border border-[#9E6B6B]/30 p-6 shadow-2xl">
 
             <h2 className="text-xl font-serif mb-4 flex items-center gap-2">
-              <Users size={20} className="text-[#9E6B6B]" />
+              <Users
+                size={20}
+                className="text-[#9E6B6B]"
+              />
+
               Liste des utilisateurs inscrits
             </h2>
 
             <div className="overflow-x-auto">
+
               <table className="w-full text-left border-collapse">
 
                 <thead>
+
                   <tr className="border-b border-[#9E6B6B]/20 text-[10px] font-mono uppercase text-neutral-600 tracking-wider">
-                    <th className="py-3 px-4">Nom</th>
-                    <th className="py-3 px-4">Email</th>
-                    <th className="py-3 px-4">Rôle</th>
-                    <th className="py-3 px-4">Statut</th>
+
+                    <th className="py-3 px-4">
+                      Nom
+                    </th>
+
+                    <th className="py-3 px-4">
+                      Email
+                    </th>
+
+                    <th className="py-3 px-4">
+                      Rôle
+                    </th>
+
+                    <th className="py-3 px-4">
+                      Statut
+                    </th>
+
                     <th className="py-3 px-4 text-center">
                       Actions
                     </th>
+
                   </tr>
+
                 </thead>
 
                 <tbody className="divide-y divide-[#9E6B6B]/10 text-sm">
 
-                  {users.map((u) => (
+                  {users.map((user) => (
+
                     <tr
-                      key={u._id}
+                      key={user._id}
                       className="hover:bg-neutral-100 transition-colors"
                     >
 
+                      {/* NOM */}
                       <td className="py-3 px-4 font-medium">
-                        {u.nom || 'N/A'}
+                        {user.nom || 'N/A'}
                       </td>
 
+                      {/* EMAIL */}
                       <td className="py-3 px-4 text-neutral-600">
-                        {u.email}
+                        {user.email}
                       </td>
 
+                      {/* RÔLE */}
                       <td className="py-3 px-4 font-mono text-xs">
+
                         <span
                           className={`px-2 py-1 ${
-                            u.role === 'admin'
+                            user.role === 'admin'
                               ? 'bg-[#9E6B6B] text-white'
                               : 'bg-neutral-200 text-neutral-800'
                           }`}
                         >
-                          {u.role || 'user'}
+                          {user.role || 'client'}
                         </span>
+
                       </td>
 
+                      {/* STATUT */}
                       <td className="py-3 px-4">
-                        {u.isApproved ? (
+
+                        {user.isApproved ||
+                        user.role === 'admin' ? (
+
                           <span className="text-green-700 flex items-center gap-1 text-xs font-mono">
                             <CheckCircle size={14} />
                             Approuvé
                           </span>
+
                         ) : (
+
                           <span className="text-amber-700 flex items-center gap-1 text-xs font-mono">
                             <ShieldAlert size={14} />
                             En attente
                           </span>
+
                         )}
+
                       </td>
 
+                      {/* ACTION */}
                       <td className="py-3 px-4 text-center">
 
-                        {!u.isApproved && u.role !== 'admin' && (
+                        {!user.isApproved &&
+                        user.role !== 'admin' && (
+
                           <button
-                            onClick={() => handleApprove(u._id)}
-                            disabled={approving === u._id}
-                            className={`px-3 py-1.5 text-white text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
-                              approving === u._id
+                            onClick={() =>
+                              handleApprove(user._id)
+                            }
+                            disabled={
+                              approving === user._id
+                            }
+                            className={`px-3 py-1.5 text-white text-xs font-mono uppercase tracking-wider transition-colors ${
+                              approving === user._id
                                 ? 'bg-neutral-400 cursor-not-allowed'
-                                : 'bg-[#9E6B6B] hover:bg-[#8A5A5A]'
+                                : 'bg-[#9E6B6B] hover:bg-[#8A5A5A] cursor-pointer'
                             }`}
                           >
-                            {approving === u._id
+                            {approving === user._id
                               ? 'Traitement...'
                               : 'Approuver'}
                           </button>
+
                         )}
 
                       </td>
 
                     </tr>
+
                   ))}
 
                 </tbody>
+
               </table>
+
             </div>
+
           </div>
+
         )}
 
       </div>
+
     </div>
   );
 }

@@ -5,52 +5,133 @@ const initialState = {
   totalItems: 0,
 };
 
+const getItemId = (item) => {
+  return item._id || item.id;
+};
+
+const calculateTotalItems = (items) => {
+  return items.reduce(
+    (total, item) => total + Number(item.quantite || 1),
+    0
+  );
+};
+
 const cartSlice = createSlice({
   name: 'cart',
+
   initialState,
+
   reducers: {
+    // =========================
+    // AJOUTER AU PANIER
+    // =========================
     addToCart: (state, action) => {
-      const existingItem = state.items.find(item => item.id === action.payload.id);
+      const newItem = action.payload;
+
+      const newItemId = getItemId(newItem);
+
+      const existingItem = state.items.find(
+        (item) => getItemId(item)?.toString() === newItemId?.toString()
+      );
+
+      const quantityToAdd = Number(newItem.quantite || 1);
+
       if (existingItem) {
-        existingItem.quantite += action.payload.quantite || 1;
+        existingItem.quantite =
+          Number(existingItem.quantite || 1) + quantityToAdd;
       } else {
-        state.items.push({ ...action.payload, quantite: action.payload.quantite || 1 });
+        state.items.push({
+          ...newItem,
+
+          // On conserve l'identifiant MongoDB
+          // et on ajoute aussi id pour compatibilité avec ton frontend
+          id: newItem.id || newItem._id,
+          _id: newItem._id || newItem.id,
+
+          quantite: quantityToAdd,
+        });
       }
-      state.totalItems = state.items.reduce((total, item) => total + item.quantite, 0);
+
+      state.totalItems = calculateTotalItems(state.items);
     },
+
+    // =========================
+    // SUPPRIMER DU PANIER
+    // =========================
     removeFromCart: (state, action) => {
-      state.items = state.items.filter(item => item.id !== action.payload);
-      state.totalItems = state.items.reduce((total, item) => total + item.quantite, 0);
+      const idToRemove = action.payload;
+
+      state.items = state.items.filter(
+        (item) =>
+          getItemId(item)?.toString() !== idToRemove?.toString()
+      );
+
+      state.totalItems = calculateTotalItems(state.items);
     },
+
+    // =========================
+    // MODIFIER QUANTITÉ
+    // =========================
     updateQuantity: (state, action) => {
       const { id, quantite } = action.payload;
-      const item = state.items.find(i => i.id === id);
+
+      const item = state.items.find(
+        (i) => getItemId(i)?.toString() === id?.toString()
+      );
+
       if (item) {
-        if (quantite <= 0) {
-          state.items = state.items.filter(i => i.id !== id);
+        const newQuantity = Number(quantite);
+
+        if (!Number.isFinite(newQuantity) || newQuantity <= 0) {
+          state.items = state.items.filter(
+            (i) =>
+              getItemId(i)?.toString() !== id?.toString()
+          );
         } else {
-          item.quantite = quantite;
+          item.quantite = newQuantity;
         }
       }
-      state.totalItems = state.items.reduce((total, item) => total + item.quantite, 0);
+
+      state.totalItems = calculateTotalItems(state.items);
     },
+
+    // =========================
+    // VIDER LE PANIER
+    // =========================
     clearCart: (state) => {
       state.items = [];
       state.totalItems = 0;
     },
+
+    // =========================
+    // RÉCUPÉRER LE PANIER BACKEND
+    // =========================
     updateBackendCart: (state, action) => {
-      state.items = action.payload;
-      state.totalItems = state.items.reduce((total, item) => total + item.quantite, 0);
-    }
+      const backendItems = Array.isArray(action.payload)
+        ? action.payload
+        : [];
+
+      state.items = backendItems.map((item) => ({
+        ...item,
+
+        // Compatibilité _id / id
+        id: item.id || item._id,
+        _id: item._id || item.id,
+
+        quantite: Number(item.quantite || 1),
+      }));
+
+      state.totalItems = calculateTotalItems(state.items);
+    },
   },
 });
 
-export const { 
-  addToCart, 
-  removeFromCart, 
-  updateQuantity, 
-  clearCart, 
-  updateBackendCart 
+export const {
+  addToCart,
+  removeFromCart,
+  updateQuantity,
+  clearCart,
+  updateBackendCart,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

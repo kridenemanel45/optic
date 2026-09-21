@@ -11,6 +11,9 @@ import { CollectionsOverview, CollectionDetail, ProductDetail } from './componen
 import Login from './components/Login';
 import BayeneFooter from './components/bayenFooter';
 import ContactSection from './components/Contact';
+import AdminLogin from './components/AdminLogin';
+import Success from './components/Success';
+
 
 function App() {
   const { userInfo } = useSelector((state) => state.user);
@@ -42,18 +45,23 @@ function App() {
             element={isAuthenticated ? <CollectionsOverview /> : <Navigate to="/login" replace />} 
           />
 
-          {/* Route Admin protégée */}
-          <Route 
-            path="/admin" 
-            element={isAdmin ? <AdminPanel /> : isAuthenticated ? <Navigate to="/collection" replace /> : <Navigate to="/login" replace />} 
-          />
+        <Route
+        path="/admin"
+       element={
+         isAdmin ? (
+         <AdminPanel />
+          ) : (
+          <AdminLogin />
+    )
+  }
+/>
           
           <Route path="/collection" element={<CollectionsOverview />} />
           <Route path="/collection/:collectionId" element={<CollectionDetail />} />
           <Route path="/product/:productId" element={<ProductDetail />} />
 
           <Route path="/contact" element={<ContactSection />} />
-
+<Route path="/success" element={<Success />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <BayeneFooter />
